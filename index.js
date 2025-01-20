@@ -27,6 +27,19 @@ async function run() {
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!"
     );
+    const database = client.db("Tesseract");
+    const usersCollection = database.collection("users");
+
+    app.post("/users", async (req, res) => {
+      const user = req.body;
+      const query = { email: user?.email };
+      const existingUser = await usersCollection.findOne(query);
+      if (existingUser) {
+        return res.send({ message: "User already exists", insertedId: null });
+      }
+      const result = await usersCollection.insertOne({...user, role: "user"});
+      res.send(result);
+    });
   } finally {
     //   await client.close();
   }
