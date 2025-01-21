@@ -30,6 +30,7 @@ async function run() {
     const database = client.db("Tesseract");
     const usersCollection = database.collection("users");
     const productsCollection = database.collection("products");
+    const reviewsCollection = database.collection("reviews");
 
     app.post("/users", async (req, res) => {
       const user = req.body;
@@ -79,6 +80,12 @@ async function run() {
       const id = req?.params?.id;
       const query = { _id: new ObjectId(id) };
       const result = await productsCollection.findOne(query);
+      res.send(result);
+    });
+
+    app.post("/reviews", async (req, res) => {
+      const review = req.body;
+      const result = await reviewsCollection.insertOne(review);
       res.send(result);
     });
   } finally {
