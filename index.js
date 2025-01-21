@@ -37,7 +37,15 @@ async function run() {
       if (existingUser) {
         return res.send({ message: "User already exists", insertedId: null });
       }
-      const result = await usersCollection.insertOne({...user, role: "user"});
+      const result = await usersCollection.insertOne({ ...user, role: "user" });
+      res.send(result);
+    });
+
+    // find data for empty query or with query based on condition of users
+    app.get("/users/:email", async (req, res) => {
+      const email = req?.params?.email;
+      const query = { email: email };
+      const result = await usersCollection.findOne(query);
       res.send(result);
     });
   } finally {
