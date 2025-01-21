@@ -64,6 +64,16 @@ async function run() {
         .toArray();
       res.send(result);
     });
+
+    app.get("/trending-products", async (req, res) => {
+      const query = {};
+      const result = await productsCollection
+        .find(query)
+        .sort({ upvotes: -1 })
+        .limit(6)
+        .toArray();
+      res.send(result);
+    });
   } finally {
     //   await client.close();
   }
