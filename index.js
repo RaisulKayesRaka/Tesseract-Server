@@ -55,6 +55,15 @@ async function run() {
       const result = await productsCollection.insertOne(product);
       res.send(result);
     });
+
+    app.get("/products", async (req, res) => {
+      const query = req?.query?.type ? { type: req?.query?.type } : {};
+      const result = await productsCollection
+        .find(query)
+        .sort({ date: -1 })
+        .toArray();
+      res.send(result);
+    });
   } finally {
     //   await client.close();
   }
