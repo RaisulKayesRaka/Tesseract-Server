@@ -58,7 +58,19 @@ async function run() {
     });
 
     app.get("/products", async (req, res) => {
-      const query = req?.query?.type ? { type: req?.query?.type } : {};
+      const page = parseInt(req?.query?.page);
+      const size = parseInt(req?.query?.size);
+      const result = await productsCollection
+        .find()
+        .sort({ date: -1 })
+        .skip(page * size)
+        .limit(size)
+        .toArray();
+      res.send(result);
+    });
+
+    app.get("/featured-products", async (req, res) => {
+      const query = { type: "featured" };
       const result = await productsCollection
         .find(query)
         .sort({ date: -1 })
@@ -97,6 +109,11 @@ async function run() {
         .sort({ reviewDate: -1 })
         .toArray();
       res.send(result);
+    });
+
+    app.get("/products-count", async (req, res) => {
+      const count = await productsCollection.estimatedDocumentCount();
+      res.send({ count });
     });
   } finally {
     //   await client.close();
