@@ -88,6 +88,16 @@ async function run() {
       const result = await reviewsCollection.insertOne(review);
       res.send(result);
     });
+
+    app.get("/reviews/:id", async (req, res) => {
+      const id = req?.params?.id;
+      const query = { productId: id };
+      const result = await reviewsCollection
+        .find(query)
+        .sort({ reviewDate: -1 })
+        .toArray();
+      res.send(result);
+    });
   } finally {
     //   await client.close();
   }
