@@ -29,6 +29,7 @@ async function run() {
     );
     const database = client.db("Tesseract");
     const usersCollection = database.collection("users");
+    const productsCollection = database.collection("products");
 
     app.post("/users", async (req, res) => {
       const user = req.body;
@@ -46,6 +47,12 @@ async function run() {
       const email = req?.params?.email;
       const query = { email: email };
       const result = await usersCollection.findOne(query);
+      res.send(result);
+    });
+
+    app.post("/products", async (req, res) => {
+      const product = req.body;
+      const result = await productsCollection.insertOne(product);
       res.send(result);
     });
   } finally {
