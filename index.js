@@ -122,6 +122,16 @@ async function run() {
       res.send(result);
     });
 
+    app.get("/reported-products", async (req, res) => {
+      let query = { isReported: true };
+
+      const result = await productsCollection
+        .find(query)
+        .sort({ date: -1 })
+        .toArray();
+      res.send(result);
+    });
+
     app.patch("/products/make-featured/:id", async (req, res) => {
       const id = req?.params?.id;
       const filter = { _id: new ObjectId(id) };
