@@ -60,8 +60,12 @@ async function run() {
     app.get("/products", async (req, res) => {
       const page = parseInt(req?.query?.page);
       const size = parseInt(req?.query?.size);
+      const search = req?.query?.search;
+      const query = search
+        ? { productTags: { $regex: search, $options: "i" } }
+        : {};
       const result = await productsCollection
-        .find()
+        .find(query)
         .sort({ date: -1 })
         .skip(page * size)
         .limit(size)
