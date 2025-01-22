@@ -62,13 +62,21 @@ async function run() {
       const page = parseInt(req?.query?.page);
       const size = parseInt(req?.query?.size);
       const search = req?.query?.search;
-      let query = search
-        ? { productTags: { $regex: search, $options: "i" } }
-        : {};
+
+      let query = {};
+
+      if (search) {
+        query.productTags = {
+          $elemMatch: {
+            text: { $regex: search, $options: "i" },
+          },
+        };
+      }
 
       if (email) {
         query = { ...query, ownerEmail: email };
       }
+
       const result = await productsCollection
         .find(query)
         .sort({ date: -1 })
@@ -79,7 +87,7 @@ async function run() {
     });
 
     app.get("/featured-products", async (req, res) => {
-      const query = { type: "featured" };
+      const query = { type: "Featured" };
       const result = await productsCollection
         .find(query)
         .sort({ date: -1 })
@@ -101,6 +109,20 @@ async function run() {
       const id = req?.params?.id;
       const query = { _id: new ObjectId(id) };
       const result = await productsCollection.findOne(query);
+      res.send(result);
+    });
+
+    app.put("/products/:id", async (req, res) => {
+      const id = req?.params?.id;
+      const product = req?.body;
+      const query = { _id: new ObjectId(id) };
+      const options = { upsert: true };
+      const updateDoc = { $set: product };
+      const result = await productsCollection.updateOne(
+        query,
+        updateDoc,
+        options
+      );
       res.send(result);
     });
 
