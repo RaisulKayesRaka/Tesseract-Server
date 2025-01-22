@@ -58,12 +58,17 @@ async function run() {
     });
 
     app.get("/products", async (req, res) => {
+      const email = req?.query?.email;
       const page = parseInt(req?.query?.page);
       const size = parseInt(req?.query?.size);
       const search = req?.query?.search;
-      const query = search
+      let query = search
         ? { productTags: { $regex: search, $options: "i" } }
         : {};
+
+      if (email) {
+        query = { ...query, ownerEmail: email };
+      }
       const result = await productsCollection
         .find(query)
         .sort({ date: -1 })
