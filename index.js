@@ -93,6 +93,30 @@ async function run() {
       res.send(result);
     });
 
+    app.get("/queued-products", async (req, res) => {
+      const result = await productsCollection
+        .aggregate([
+          {
+            $addFields: {
+              statusOrder: {
+                $switch: {
+                  branches: [
+                    { case: { $eq: ["$status", "Pending"] }, then: 0 },
+                    { case: { $eq: ["$status", "Accepted"] }, then: 1 },
+                    { case: { $eq: ["$status", "Rejected"] }, then: 2 },
+                  ],
+                  default: 3,
+                },
+              },
+            },
+          },
+          { $sort: { statusOrder: 1, date: -1 } },
+          { $project: { statusOrder: 0 } },
+        ])
+        .toArray();
+      res.send(result);
+    });
+
     app.get("/accepted-products", async (req, res) => {
       const email = req?.query?.email;
       const page = parseInt(req?.query?.page);
