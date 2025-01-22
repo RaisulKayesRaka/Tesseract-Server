@@ -43,11 +43,23 @@ async function run() {
       res.send(result);
     });
 
-    // find data for empty query or with query based on condition of users
+    app.get("/users", async (req, res) => {
+      const result = await usersCollection.find().toArray();
+      res.send(result);
+    });
+
     app.get("/users/:email", async (req, res) => {
       const email = req?.params?.email;
       const query = { email: email };
       const result = await usersCollection.findOne(query);
+      res.send(result);
+    });
+
+    app.patch("/users/make-moderator/:id", async (req, res) => {
+      const id = req?.params?.id;
+      const filter = { _id: new ObjectId(id) };
+      const updateDoc = { $set: { role: "moderator" } };
+      const result = await usersCollection.updateOne(filter, updateDoc);
       res.send(result);
     });
 
