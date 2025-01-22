@@ -106,6 +106,14 @@ async function run() {
       res.send(result);
     });
 
+    app.patch("/products/make-featured/:id", async (req, res) => {
+      const id = req?.params?.id;
+      const filter = { _id: new ObjectId(id) };
+      const updateDoc = { $set: { type: "Featured" } };
+      const result = await productsCollection.updateOne(filter, updateDoc);
+      res.send(result);
+    });
+
     app.get("/featured-products", async (req, res) => {
       const query = { type: "Featured" };
       const result = await productsCollection
