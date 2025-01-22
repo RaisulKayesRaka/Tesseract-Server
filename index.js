@@ -77,13 +77,29 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/products", async (req, res) => {
+    app.get("/all-products", async (req, res) => {
+      const email = req?.query?.email;
+
+      let query = {};
+
+      if (email) {
+        query = { ...query, ownerEmail: email };
+      }
+
+      const result = await productsCollection
+        .find(query)
+        .sort({ date: -1 })
+        .toArray();
+      res.send(result);
+    });
+
+    app.get("/accepted-products", async (req, res) => {
       const email = req?.query?.email;
       const page = parseInt(req?.query?.page);
       const size = parseInt(req?.query?.size);
       const search = req?.query?.search;
 
-      let query = {};
+      let query = { status: "Accepted" };
 
       if (search) {
         query.productTags = {
@@ -131,7 +147,7 @@ async function run() {
     });
 
     app.get("/featured-products", async (req, res) => {
-      const query = { type: "Featured" };
+      const query = { type: "Featured", status: "Accepted" };
       const result = await productsCollection
         .find(query)
         .sort({ date: -1 })
@@ -140,7 +156,7 @@ async function run() {
     });
 
     app.get("/trending-products", async (req, res) => {
-      const query = {};
+      const query = { status: "Accepted" };
       const result = await productsCollection
         .find(query)
         .sort({ upvotes: -1 })
