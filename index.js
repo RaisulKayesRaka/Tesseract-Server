@@ -132,6 +132,14 @@ async function run() {
       res.send(result);
     });
 
+    app.patch("/products/make-reported/:id", async (req, res) => {
+      const id = req?.params?.id;
+      const filter = { _id: new ObjectId(id) };
+      const updateDoc = { $set: { isReported: true } };
+      const result = await productsCollection.updateOne(filter, updateDoc);
+      res.send(result);
+    });
+
     app.patch("/products/make-featured/:id", async (req, res) => {
       const id = req?.params?.id;
       const filter = { _id: new ObjectId(id) };
