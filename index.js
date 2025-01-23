@@ -355,6 +355,13 @@ async function run() {
       );
       res.send(result);
     });
+
+    app.delete("/coupons/:id", async (req, res) => {
+      const id = req?.params?.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await couponsCollection.deleteOne(query);
+      res.send(result);
+    });
   } finally {
     //   await client.close();
   }
