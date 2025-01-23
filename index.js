@@ -31,6 +31,7 @@ async function run() {
     const usersCollection = database.collection("users");
     const productsCollection = database.collection("products");
     const reviewsCollection = database.collection("reviews");
+    const upvotesCollection = database.collection("upvotes");
 
     app.post("/users", async (req, res) => {
       const user = req.body;
@@ -167,7 +168,7 @@ async function run() {
     app.patch("/products/make-featured/:id", async (req, res) => {
       const id = req?.params?.id;
       const filter = { _id: new ObjectId(id) };
-      const updateDoc = { $set: { type: "Featured" } };
+      const updateDoc = { $set: { type: "Featured", status: "Accepted" } };
       const result = await productsCollection.updateOne(filter, updateDoc);
       res.send(result);
     });
@@ -183,8 +184,44 @@ async function run() {
     app.patch("/products/make-rejected/:id", async (req, res) => {
       const id = req?.params?.id;
       const filter = { _id: new ObjectId(id) };
-      const updateDoc = { $set: { status: "Rejected" } };
+      const updateDoc = { $set: { status: "Rejected", type: "Normal" } };
       const result = await productsCollection.updateOne(filter, updateDoc);
+      res.send(result);
+    });
+
+    app.get("/products/is-upvoted/:id", async (req, res) => {
+      const id = req?.params?.id;
+      const email = req?.query?.email;
+      const query = { productId: new ObjectId(id), email: email };
+      const result = await upvotesCollection.findOne(query);
+      res.send(result);
+    });
+
+    app.put("/products/upvote/:id", async (req, res) => {
+      const id = req?.params?.id;
+      const email = req?.query?.email;
+      const query = { productId: new ObjectId(id), email };
+
+      const isUpvoted = await upvotesCollection.findOne(query);
+
+      if (!isUpvoted) {
+        await upvotesCollection.insertOne({
+          email,
+          productId: new ObjectId(id),
+        });
+      } else {
+        await upvotesCollection.deleteOne(query);
+      }
+
+      const updateDoc = isUpvoted
+        ? { $inc: { upvotes: -1 } }
+        : { $inc: { upvotes: 1 } };
+
+      const result = await productsCollection.updateOne(
+        { _id: new ObjectId(id) },
+        updateDoc
+      );
+
       res.send(result);
     });
 
