@@ -336,6 +336,12 @@ async function run() {
       const result = await couponsCollection.insertOne(coupon);
       res.send(result);
     });
+
+    app.get("/coupons", async (req, res) => {
+      const coupons = await couponsCollection.find().toArray();
+      res.send(coupons);
+    });
+    
   } finally {
     //   await client.close();
   }
