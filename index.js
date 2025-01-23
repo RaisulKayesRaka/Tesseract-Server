@@ -33,6 +33,7 @@ async function run() {
     const reviewsCollection = database.collection("reviews");
     const upvotesCollection = database.collection("upvotes");
     const downvotesCollection = database.collection("downvotes");
+    const couponsCollection = database.collection("coupons");
 
     app.post("/users", async (req, res) => {
       const user = req.body;
@@ -328,6 +329,12 @@ async function run() {
     app.get("/products-count", async (req, res) => {
       const count = await productsCollection.estimatedDocumentCount();
       res.send({ count });
+    });
+
+    app.post("/coupons", async (req, res) => {
+      const coupon = req.body;
+      const result = await couponsCollection.insertOne(coupon);
+      res.send(result);
     });
   } finally {
     //   await client.close();
