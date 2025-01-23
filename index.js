@@ -32,6 +32,7 @@ async function run() {
     const productsCollection = database.collection("products");
     const reviewsCollection = database.collection("reviews");
     const upvotesCollection = database.collection("upvotes");
+    const downvotesCollection = database.collection("downvotes");
 
     app.post("/users", async (req, res) => {
       const user = req.body;
@@ -194,7 +195,7 @@ async function run() {
       const email = req?.query?.email;
       const query = { productId: new ObjectId(id), email: email };
       const result = await upvotesCollection.findOne(query);
-      res.send(result);
+      res.send(result?._id ? true : false);
     });
 
     app.put("/products/upvote/:id", async (req, res) => {
@@ -225,6 +226,42 @@ async function run() {
       res.send(result);
     });
 
+    app.get("/products/is-downvoted/:id", async (req, res) => {
+      const id = req?.params?.id;
+      const email = req?.query?.email;
+      const query = { productId: new ObjectId(id), email: email };
+      const result = await downvotesCollection.findOne(query);
+      res.send(result?._id ? true : false);
+    });
+
+    app.put("/products/downvote/:id", async (req, res) => {
+      const id = req?.params?.id;
+      const email = req?.query?.email;
+      const query = { productId: new ObjectId(id), email };
+
+      const isDownvoted = await downvotesCollection.findOne(query);
+
+      if (!isDownvoted) {
+        await downvotesCollection.insertOne({
+          email,
+          productId: new ObjectId(id),
+        });
+      } else {
+        await downvotesCollection.deleteOne(query);
+      }
+
+      const updateDoc = isDownvoted
+        ? { $inc: { downvotes: -1 } }
+        : { $inc: { downvotes: 1 } };
+
+      const result = await productsCollection.updateOne(
+        { _id: new ObjectId(id) },
+        updateDoc
+      );
+
+      res.send(result);
+    });
+
     app.get("/featured-products", async (req, res) => {
       const query = { type: "Featured", status: "Accepted" };
       const result = await productsCollection
@@ -238,7 +275,7 @@ async function run() {
       const query = { status: "Accepted" };
       const result = await productsCollection
         .find(query)
-        .sort({ upvotes: -1 })
+        .sort({ upvotes: -1, downvotes: 1 })
         .limit(6)
         .toArray();
       res.send(result);
