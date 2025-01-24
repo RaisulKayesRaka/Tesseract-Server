@@ -438,6 +438,19 @@ async function run() {
       }
       res.send({ amount: baseAmount });
     });
+
+    app.get("/statistics", async (req, res) => {
+      const productsCount = await productsCollection.countDocuments({});
+      const reviewsCount = await reviewsCollection.countDocuments({});
+      const usersCount = await usersCollection.countDocuments({});
+
+      const data = [
+        { name: "Products", value: productsCount },
+        { name: "Users", value: usersCount },
+        { name: "Reviews", value: reviewsCount },
+      ];
+      res.send(data);
+    });
   } finally {
     //   await client.close();
   }
