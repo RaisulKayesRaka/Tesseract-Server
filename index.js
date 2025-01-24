@@ -23,7 +23,7 @@ app.post("/create-payment-intent", async (req, res) => {
   const { amount } = req.body;
 
   const paymentIntent = await stripe.paymentIntents.create({
-    amount: amount,
+    amount: amount * 100,
     currency: "usd",
     automatic_payment_methods: {
       enabled: true,
@@ -34,7 +34,6 @@ app.post("/create-payment-intent", async (req, res) => {
     clientSecret: paymentIntent.client_secret,
   });
 });
-
 
 app.get("/", (req, res) => {
   res.send("Tesseract");
@@ -77,10 +76,18 @@ async function run() {
       res.send(result);
     });
 
+    app.put("/users/verify", async (req, res) => {
+      const email = req?.query?.email;
+      const filter = { email: email };
+      const updateDoc = { $set: { isVerified: true } };
+      const result = await usersCollection.updateOne(filter, updateDoc);
+      res.send(result);
+    });
+
     app.patch("/users/make-moderator/:id", async (req, res) => {
       const id = req?.params?.id;
       const filter = { _id: new ObjectId(id) };
-      const updateDoc = { $set: { role: "moderator" } };
+      const updateDoc = { $set: { role: "moderator", isVerified: true } };
       const result = await usersCollection.updateOne(filter, updateDoc);
       res.send(result);
     });
@@ -88,7 +95,7 @@ async function run() {
     app.patch("/users/make-admin/:id", async (req, res) => {
       const id = req?.params?.id;
       const filter = { _id: new ObjectId(id) };
-      const updateDoc = { $set: { role: "admin" } };
+      const updateDoc = { $set: { role: "admin", isVerified: true } };
       const result = await usersCollection.updateOne(filter, updateDoc);
       res.send(result);
     });
@@ -361,6 +368,23 @@ async function run() {
       res.send(coupons);
     });
 
+    app.get("/coupons/:couponCode", async (req, res) => {
+      const couponCode = req?.params?.couponCode;
+      const query = { couponCode: couponCode };
+      const result = await couponsCollection.findOne(query);
+      if (result) {
+        const expiryDate = new Date(result?.expiryDate).getTime();
+        const currentDate = new Date().getTime();
+        if (expiryDate > currentDate) {
+          res.send({ status: "valid" });
+        } else {
+          res.send({ status: "expired" });
+        }
+      } else {
+        res.send({ status: "invalid" });
+      }
+    });
+
     app.put("/coupons/:id", async (req, res) => {
       const id = req?.params?.id;
       const coupon = req?.body;
@@ -380,6 +404,25 @@ async function run() {
       const query = { _id: new ObjectId(id) };
       const result = await couponsCollection.deleteOne(query);
       res.send(result);
+    });
+
+    app.get("/subscription-amount", async (req, res) => {
+      const couponCode = req?.query?.couponCode;
+      const baseAmount = 10;
+      if (couponCode) {
+        const query = { couponCode: couponCode };
+        const coupon = await couponsCollection.findOne(query);
+        if (coupon) {
+          const expiryDate = new Date(coupon?.expiryDate).getTime();
+          const currentDate = new Date().getTime();
+          if (expiryDate > currentDate) {
+            const newAmount =
+              baseAmount - (coupon?.discountAmount / 100) * baseAmount;
+            return res.send({ amount: newAmount });
+          }
+        }
+      }
+      res.send({ amount: baseAmount });
     });
   } finally {
     //   await client.close();
