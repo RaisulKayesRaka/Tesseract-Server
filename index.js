@@ -60,7 +60,11 @@ async function run() {
       if (existingUser) {
         return res.send({ message: "User already exists", insertedId: null });
       }
-      const result = await usersCollection.insertOne({ ...user, role: "user" });
+      const result = await usersCollection.insertOne({
+        ...user,
+        role: "user",
+        isVerified: false,
+      });
       res.send(result);
     });
 
@@ -102,6 +106,16 @@ async function run() {
 
     app.post("/products", async (req, res) => {
       const product = req.body;
+      const query1 = { ownerEmail: product?.ownerEmail };
+      const productCount = await productsCollection.countDocuments(query1);
+      const query2 = { email: product?.ownerEmail };
+      const user = await usersCollection.findOne(query2);
+      if (!user?.isVerified && productCount >= 1) {
+        return res.send({
+          message: "Not verified! Can't add more products",
+          insertedId: null,
+        });
+      }
       const result = await productsCollection.insertOne(product);
       res.send(result);
     });
