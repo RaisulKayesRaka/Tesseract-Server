@@ -2,6 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const app = express();
 const cors = require("cors");
+const jwt = require("jsonwebtoken");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 
@@ -53,6 +54,64 @@ async function run() {
     const downvotesCollection = database.collection("downvotes");
     const couponsCollection = database.collection("coupons");
 
+    app.post("/jwt", async (req, res) => {
+      const user = req.body;
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
+        expiresIn: "1h",
+      });
+      res.send({ token });
+    });
+
+    // verify jwt
+    const verifyToken = (req, res, next) => {
+      if (!req.headers.authorization) {
+        return res.status(401).send({ message: "Unauthorized" });
+      }
+      const token = req.headers.authorization.split(" ")[1];
+
+      jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+        if (err) {
+          return res.status(403).send({ message: "Forbidden" });
+        }
+        req.decoded = decoded;
+        next();
+      });
+    };
+
+    // verify admin
+    const verifyAdmin = async (req, res, next) => {
+      const email = req?.decoded?.email;
+      const query = { email: email };
+      const user = await usersCollection.findOne(query);
+      const isAdmin = user?.role === "admin";
+      if (!isAdmin) {
+        return res.status(403).send({ message: "Forbidden" });
+      }
+      next();
+    };
+
+    // verify moderator
+    const verifyModerator = async (req, res, next) => {
+      const email = req?.decoded?.email;
+      const query = { email: email };
+      const user = await usersCollection.findOne(query);
+      const isModerator = user?.role === "moderator";
+      if (!isModerator) {
+        return res.status(403).send({ message: "Forbidden" });
+      }
+      next();
+    };
+
+    app.get("/logout", async (req, res) => {
+      res
+        .clearCookie("token", {
+          maxAge: 0,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+        })
+        .send({ success: true });
+    });
+
     app.post("/users", async (req, res) => {
       const user = req.body;
       const query = { email: user?.email };
@@ -68,19 +127,19 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/users", async (req, res) => {
+    app.get("/users", verifyToken, verifyAdmin, async (req, res) => {
       const result = await usersCollection.find().toArray();
       res.send(result);
     });
 
-    app.get("/users/:email", async (req, res) => {
+    app.get("/users/:email", verifyToken, async (req, res) => {
       const email = req?.params?.email;
       const query = { email: email };
       const result = await usersCollection.findOne(query);
       res.send(result);
     });
 
-    app.put("/users/verify", async (req, res) => {
+    app.put("/users/verify", verifyToken, async (req, res) => {
       const email = req?.query?.email;
       const filter = { email: email };
       const updateDoc = { $set: { isVerified: true } };
@@ -88,23 +147,33 @@ async function run() {
       res.send(result);
     });
 
-    app.patch("/users/make-moderator/:id", async (req, res) => {
-      const id = req?.params?.id;
-      const filter = { _id: new ObjectId(id) };
-      const updateDoc = { $set: { role: "moderator", isVerified: true } };
-      const result = await usersCollection.updateOne(filter, updateDoc);
-      res.send(result);
-    });
+    app.patch(
+      "/users/make-moderator/:id",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const id = req?.params?.id;
+        const filter = { _id: new ObjectId(id) };
+        const updateDoc = { $set: { role: "moderator", isVerified: true } };
+        const result = await usersCollection.updateOne(filter, updateDoc);
+        res.send(result);
+      }
+    );
 
-    app.patch("/users/make-admin/:id", async (req, res) => {
-      const id = req?.params?.id;
-      const filter = { _id: new ObjectId(id) };
-      const updateDoc = { $set: { role: "admin", isVerified: true } };
-      const result = await usersCollection.updateOne(filter, updateDoc);
-      res.send(result);
-    });
+    app.patch(
+      "/users/make-admin/:id",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const id = req?.params?.id;
+        const filter = { _id: new ObjectId(id) };
+        const updateDoc = { $set: { role: "admin", isVerified: true } };
+        const result = await usersCollection.updateOne(filter, updateDoc);
+        res.send(result);
+      }
+    );
 
-    app.post("/products", async (req, res) => {
+    app.post("/products", verifyToken, async (req, res) => {
       const product = req.body;
       const query1 = { ownerEmail: product?.ownerEmail };
       const productCount = await productsCollection.countDocuments(query1);
@@ -120,7 +189,7 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/all-products", async (req, res) => {
+    app.get("/all-products", verifyToken, async (req, res) => {
       const email = req?.query?.email;
 
       let query = {};
@@ -136,31 +205,36 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/queued-products", async (req, res) => {
-      const result = await productsCollection
-        .aggregate([
-          {
-            $addFields: {
-              statusOrder: {
-                $switch: {
-                  branches: [
-                    { case: { $eq: ["$status", "Pending"] }, then: 0 },
-                    { case: { $eq: ["$status", "Accepted"] }, then: 1 },
-                    { case: { $eq: ["$status", "Rejected"] }, then: 2 },
-                  ],
-                  default: 3,
+    app.get(
+      "/queued-products",
+      verifyToken,
+      verifyModerator,
+      async (req, res) => {
+        const result = await productsCollection
+          .aggregate([
+            {
+              $addFields: {
+                statusOrder: {
+                  $switch: {
+                    branches: [
+                      { case: { $eq: ["$status", "Pending"] }, then: 0 },
+                      { case: { $eq: ["$status", "Accepted"] }, then: 1 },
+                      { case: { $eq: ["$status", "Rejected"] }, then: 2 },
+                    ],
+                    default: 3,
+                  },
                 },
               },
             },
-          },
-          { $sort: { statusOrder: 1, date: -1 } },
-          { $project: { statusOrder: 0 } },
-        ])
-        .toArray();
-      res.send(result);
-    });
+            { $sort: { statusOrder: 1, date: -1 } },
+            { $project: { statusOrder: 0 } },
+          ])
+          .toArray();
+        res.send(result);
+      }
+    );
 
-    app.get("/accepted-products", async (req, res) => {
+    app.get("/accepted-products", verifyToken, async (req, res) => {
       const email = req?.query?.email;
       const page = parseInt(req?.query?.page);
       const size = parseInt(req?.query?.size);
@@ -189,17 +263,22 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/reported-products", async (req, res) => {
-      let query = { isReported: true };
+    app.get(
+      "/reported-products",
+      verifyToken,
+      verifyModerator,
+      async (req, res) => {
+        let query = { isReported: true };
 
-      const result = await productsCollection
-        .find(query)
-        .sort({ date: -1 })
-        .toArray();
-      res.send(result);
-    });
+        const result = await productsCollection
+          .find(query)
+          .sort({ date: -1 })
+          .toArray();
+        res.send(result);
+      }
+    );
 
-    app.patch("/products/make-reported/:id", async (req, res) => {
+    app.patch("/products/make-reported/:id", verifyToken, async (req, res) => {
       const id = req?.params?.id;
       const filter = { _id: new ObjectId(id) };
       const updateDoc = { $set: { isReported: true } };
@@ -207,29 +286,44 @@ async function run() {
       res.send(result);
     });
 
-    app.patch("/products/make-featured/:id", async (req, res) => {
-      const id = req?.params?.id;
-      const filter = { _id: new ObjectId(id) };
-      const updateDoc = { $set: { type: "Featured", status: "Accepted" } };
-      const result = await productsCollection.updateOne(filter, updateDoc);
-      res.send(result);
-    });
+    app.patch(
+      "/products/make-featured/:id",
+      verifyToken,
+      verifyModerator,
+      async (req, res) => {
+        const id = req?.params?.id;
+        const filter = { _id: new ObjectId(id) };
+        const updateDoc = { $set: { type: "Featured", status: "Accepted" } };
+        const result = await productsCollection.updateOne(filter, updateDoc);
+        res.send(result);
+      }
+    );
 
-    app.patch("/products/make-accepted/:id", async (req, res) => {
-      const id = req?.params?.id;
-      const filter = { _id: new ObjectId(id) };
-      const updateDoc = { $set: { status: "Accepted" } };
-      const result = await productsCollection.updateOne(filter, updateDoc);
-      res.send(result);
-    });
+    app.patch(
+      "/products/make-accepted/:id",
+      verifyToken,
+      verifyModerator,
+      async (req, res) => {
+        const id = req?.params?.id;
+        const filter = { _id: new ObjectId(id) };
+        const updateDoc = { $set: { status: "Accepted" } };
+        const result = await productsCollection.updateOne(filter, updateDoc);
+        res.send(result);
+      }
+    );
 
-    app.patch("/products/make-rejected/:id", async (req, res) => {
-      const id = req?.params?.id;
-      const filter = { _id: new ObjectId(id) };
-      const updateDoc = { $set: { status: "Rejected", type: "Normal" } };
-      const result = await productsCollection.updateOne(filter, updateDoc);
-      res.send(result);
-    });
+    app.patch(
+      "/products/make-rejected/:id",
+      verifyToken,
+      verifyModerator,
+      async (req, res) => {
+        const id = req?.params?.id;
+        const filter = { _id: new ObjectId(id) };
+        const updateDoc = { $set: { status: "Rejected", type: "Normal" } };
+        const result = await productsCollection.updateOne(filter, updateDoc);
+        res.send(result);
+      }
+    );
 
     app.get("/products/is-upvoted/:id", async (req, res) => {
       const id = req?.params?.id;
@@ -239,7 +333,7 @@ async function run() {
       res.send(result?._id ? true : false);
     });
 
-    app.put("/products/upvote/:id", async (req, res) => {
+    app.put("/products/upvote/:id", verifyToken, async (req, res) => {
       const id = req?.params?.id;
       const email = req?.query?.email;
       const query = { productId: new ObjectId(id), email };
@@ -275,7 +369,7 @@ async function run() {
       res.send(result?._id ? true : false);
     });
 
-    app.put("/products/downvote/:id", async (req, res) => {
+    app.put("/products/downvote/:id", verifyToken, async (req, res) => {
       const id = req?.params?.id;
       const email = req?.query?.email;
       const query = { productId: new ObjectId(id), email };
@@ -322,14 +416,14 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/products/:id", async (req, res) => {
+    app.get("/products/:id", verifyToken, async (req, res) => {
       const id = req?.params?.id;
       const query = { _id: new ObjectId(id) };
       const result = await productsCollection.findOne(query);
       res.send(result);
     });
 
-    app.put("/products/:id", async (req, res) => {
+    app.put("/products/:id", verifyToken, async (req, res) => {
       const id = req?.params?.id;
       const product = req?.body;
       const query = { _id: new ObjectId(id) };
@@ -343,20 +437,20 @@ async function run() {
       res.send(result);
     });
 
-    app.delete("/products/:id", async (req, res) => {
+    app.delete("/products/:id", verifyToken, async (req, res) => {
       const id = req?.params?.id;
       const query = { _id: new ObjectId(id) };
       const result = await productsCollection.deleteOne(query);
       res.send(result);
     });
 
-    app.post("/reviews", async (req, res) => {
+    app.post("/reviews", verifyToken, async (req, res) => {
       const review = req.body;
       const result = await reviewsCollection.insertOne(review);
       res.send(result);
     });
 
-    app.get("/reviews/:id", async (req, res) => {
+    app.get("/reviews/:id", verifyToken, async (req, res) => {
       const id = req?.params?.id;
       const query = { productId: id };
       const result = await reviewsCollection
@@ -366,12 +460,12 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/products-count", async (req, res) => {
+    app.get("/products-count", verifyToken, async (req, res) => {
       const count = await productsCollection.estimatedDocumentCount();
       res.send({ count });
     });
 
-    app.post("/coupons", async (req, res) => {
+    app.post("/coupons", verifyToken, verifyAdmin, async (req, res) => {
       const coupon = req.body;
       const result = await couponsCollection.insertOne(coupon);
       res.send(result);
@@ -399,7 +493,7 @@ async function run() {
       }
     });
 
-    app.put("/coupons/:id", async (req, res) => {
+    app.put("/coupons/:id", verifyToken, verifyAdmin, async (req, res) => {
       const id = req?.params?.id;
       const coupon = req?.body;
       const query = { _id: new ObjectId(id) };
@@ -413,14 +507,14 @@ async function run() {
       res.send(result);
     });
 
-    app.delete("/coupons/:id", async (req, res) => {
+    app.delete("/coupons/:id", verifyToken, verifyAdmin, async (req, res) => {
       const id = req?.params?.id;
       const query = { _id: new ObjectId(id) };
       const result = await couponsCollection.deleteOne(query);
       res.send(result);
     });
 
-    app.get("/subscription-amount", async (req, res) => {
+    app.get("/subscription-amount", verifyToken, async (req, res) => {
       const couponCode = req?.query?.couponCode;
       const baseAmount = 10;
       if (couponCode) {
@@ -439,7 +533,7 @@ async function run() {
       res.send({ amount: baseAmount });
     });
 
-    app.get("/statistics", async (req, res) => {
+    app.get("/statistics", verifyToken, verifyAdmin, async (req, res) => {
       const productsCount = await productsCollection.countDocuments({});
       const reviewsCount = await reviewsCollection.countDocuments({});
       const usersCount = await usersCollection.countDocuments({});
