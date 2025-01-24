@@ -234,7 +234,7 @@ async function run() {
       }
     );
 
-    app.get("/accepted-products", verifyToken, async (req, res) => {
+    app.get("/accepted-products", async (req, res) => {
       const email = req?.query?.email;
       const page = parseInt(req?.query?.page);
       const size = parseInt(req?.query?.size);
@@ -460,7 +460,7 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/products-count", verifyToken, async (req, res) => {
+    app.get("/products-count", async (req, res) => {
       const count = await productsCollection.estimatedDocumentCount();
       res.send({ count });
     });
