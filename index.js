@@ -239,6 +239,7 @@ async function run() {
       const page = parseInt(req?.query?.page);
       const size = parseInt(req?.query?.size);
       const search = req?.query?.search;
+      const sort = req?.query?.sort;
 
       let query = { status: "Accepted" };
 
@@ -254,12 +255,23 @@ async function run() {
         query = { ...query, ownerEmail: email };
       }
 
-      const result = await productsCollection
-        .find(query)
-        .sort({ date: -1 })
-        .skip(page * size)
-        .limit(size)
-        .toArray();
+      let result = [];
+
+      if (sort === "newest") {
+        result = await productsCollection
+          .find(query)
+          .sort({ date: -1 })
+          .skip(page * size)
+          .limit(size)
+          .toArray();
+      } else {
+        result = await productsCollection
+          .find(query)
+          .sort({ date: 1 })
+          .skip(page * size)
+          .limit(size)
+          .toArray();
+      }
       res.send(result);
     });
 
