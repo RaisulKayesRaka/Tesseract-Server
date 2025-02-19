@@ -557,6 +557,18 @@ async function run() {
       ];
       res.send(data);
     });
+
+    app.get("/stats", async (req, res) => {
+      const productsCount = await productsCollection.countDocuments({
+        status: "Accepted",
+      });
+      const usersCount = await usersCollection.countDocuments({ role: "user" });
+      const upvotesCount = await upvotesCollection.countDocuments({});
+
+      const data = { productsCount, usersCount, upvotesCount };
+
+      res.send(data);
+    });
   } finally {
     //   await client.close();
   }
